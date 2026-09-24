@@ -1,171 +1,818 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Duiyakid 的导航站</title>
-    <style>
-        /* 全局样式重置 */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>PARITA · 集成工业</title>
+<style>
+  /* ===== 设计令牌 ===== */
+  :root {
+    --paper: #e8e8e2;
+    --panel: #f2f2ec;
+    --sunk: #dcddd6;
+    --line: #d8d9d5;
+    --line-2: #b6b8b3;
+    --ink: #101110;
+    --ink-2: #4a4c48;
+    --ink-3: #898d89;
+    --signal: #fff500;
 
-        /* 页面背景和布局 */
-        body {
-            background-color: #f4f6f8;
-            color: #333;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
+    --font-display: "Arial Narrow", "Segoe UI", sans-serif;
+    --font-body: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
 
-        .container {
-            width: 100%;
-            max-width: 900px;
-            background: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-            padding: 40px;
-            animation: fadeIn 0.6s ease-out;
-        }
+    --dock-h: 72px;
+    --side-w: 72px;
 
-        /* 标题部分 */
-        header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+  }
 
-        header h1 {
-            font-size: 2rem;
-            color: #1a1a1a;
-            margin-bottom: 10px;
-        }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 16px; }
+  body {
+    font-family: var(--font-body);
+    background: var(--paper);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
 
-        header p {
-            color: #666;
-            font-size: 1rem;
-        }
+  /* ===== 黄色擦除加载 ===== */
+  .wipe {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--signal);
+    transform: scaleX(1); transform-origin: left;
+    animation: wipeOut 0.9s cubic-bezier(0.76, 0, 0.24, 1) 0.3s forwards;
+    pointer-events: none;
+  }
+  @keyframes wipeOut {
+    to { transform: scaleX(0); transform-origin: right; }
+  }
 
-        /* 卡片网格布局 */
-        .card-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-        }
+  /* ===== 页面容器 ===== */
+  .page {
+    position: fixed;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: opacity, transform;
+  }
 
-        /* 单个卡片样式 */
-        .card {
-            background: #fafafa;
-            border: 1px solid #eee;
-            border-radius: 12px;
-            padding: 24px;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            color: inherit;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
+  #pageHome {
+    z-index: 10;
+    opacity: 1;
+    transform: translateX(0);
+  }
 
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-            border-color: #d0d0d0;
-            background: #ffffff;
-        }
+  #pageDoc {
+    z-index: 20;
+    opacity: 0;
+    transform: translateX(100%);
+    pointer-events: none;
+  }
 
-        .card h2 {
-            font-size: 1.25rem;
-            margin-bottom: 10px;
-            color: #2c3e50;
-        }
+  body.doc-mode #pageHome {
+    opacity: 0;
+    transform: translateX(-15%);
+    pointer-events: none;
+  }
+  body.doc-mode #pageDoc {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
 
-        .card p {
-            font-size: 0.9rem;
-            color: #7f8c8d;
-            line-height: 1.5;
-            margin-bottom: 20px;
-            flex-grow: 1;
-        }
+  /* ===== 首页英雄区 ===== */
+  .hero {
+    position: relative;
+    min-height: calc(100vh - var(--dock-h));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 4rem 3rem;
+  }
+  .hero-media {
+    position: absolute; inset: 0;
+    background: var(--sunk);
+    clip-path: polygon(0 0, 100% 0, 100% 88%, 0 100%);
+  }
+  .hero-media::after {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(16,17,16,0.03) 2px, rgba(16,17,16,0.03) 4px),
+      linear-gradient(135deg, transparent 60%, rgba(255,245,0,0.18));
+  }
+  .hero-index {
+    position: absolute; top: 2rem; right: 3rem;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 8rem;
+    line-height: 1;
+    color: var(--line);
+    user-select: none;
+    pointer-events: none;
+  }
+  .hero-title {
+    position: relative;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(3rem, 8vw, 7rem);
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+    color: var(--ink);
+    max-width: 14ch;
+  }
+  .hero-title .accent-bar {
+    display: block;
+    width: 80px; height: 6px;
+    background: var(--signal);
+    margin-bottom: 0.4em;
+  }
+  .hero-meta {
+    position: relative;
+    display: flex; gap: 2rem; margin-top: 2rem;
+    font-size: 0.8rem; color: var(--ink-2);
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .hero-meta span::before {
+    content: '◆';
+    color: var(--signal);
+    margin-right: 0.5em;
+    font-size: 0.6em;
+    vertical-align: middle;
+  }
 
-        .card .btn {
-            display: inline-block;
-            background-color: #3498db;
-            color: #fff;
-            text-align: center;
-            padding: 10px 16px;
-            border-radius: 8px;
-            font-weight: 500;
-            font-size: 0.9rem;
-            transition: background-color 0.2s;
-        }
+  /* ===== 操作坞 ===== */
+  .dock {
+    position: fixed;
+    background: var(--ink);
+    display: flex;
+    z-index: 400;
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
 
-        .card:hover .btn {
-            background-color: #2980b9;
-        }
+  .dock {
+    bottom: 0; left: 0; right: 0;
+    height: var(--dock-h);
+    flex-direction: row;
+    align-items: stretch;
+  }
 
-        /* 页脚 */
-        footer {
-            text-align: center;
-            margin-top: 40px;
-            font-size: 0.85rem;
-            color: #aaa;
-        }
+  .dock-btn {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center;
+    gap: 0.75rem;
+    background: transparent;
+    border: none;
+    border-right: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.7);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.2s;
+    position: relative;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dock-btn:last-child { border-right: none; }
 
-        /* 简单的淡入动画 */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-    </style>
+  .dock-btn::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 0;
+    background: var(--signal);
+    transition: width 0.3s cubic-bezier(0.76, 0, 0.24, 1);
+    z-index: 0;
+  }
+  .dock-btn:hover::before { width: 100%; }
+  .dock-btn:hover { color: var(--ink); }
+  .dock-btn span { position: relative; z-index: 1; }
+  .dock-btn .dot {
+    width: 6px; height: 6px;
+    background: var(--signal);
+    display: inline-block;
+    position: relative; z-index: 1;
+  }
+  .dock-btn:hover .dot { background: var(--ink); }
+
+  body.doc-mode .dock {
+    transform: translateY(100%);
+  }
+
+  /* ===== 文档页 ===== */
+  .doc-topbar {
+    position: sticky; top: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.25rem 2.5rem;
+    padding-top: calc(1.25rem + var(--safe-top));
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    z-index: 10;
+  }
+  .doc-back {
+    display: inline-flex; align-items: center; gap: 0.6rem;
+    background: transparent;
+    border: 1px solid var(--line-2);
+    padding: 0.55em 1.1em;
+    color: var(--ink-2);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .doc-back:hover {
+    background: var(--ink);
+    color: var(--signal);
+    border-color: var(--ink);
+  }
+  .doc-topbar-label {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: flex; align-items: center; gap: 0.6rem;
+  }
+  .doc-topbar-label::before {
+    content: '';
+    width: 16px; height: 3px;
+    background: var(--signal);
+  }
+
+  .doc-content {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 5rem 3rem 8rem;
+    padding-bottom: calc(8rem + var(--safe-bottom));
+  }
+
+  /* ★ 编号行：编号在左，按钮在右 */
+  .doc-header-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .doc-index {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 5rem;
+    line-height: 0.9;
+    color: var(--signal);
+    -webkit-text-stroke: 1px var(--ink);
+    flex-shrink: 0;
+  }
+
+  .doc-title {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 2rem;
+    color: var(--ink);
+  }
+
+  .doc-divider {
+    width: 100%; height: 1px;
+    background: var(--line-2);
+    margin-bottom: 3rem;
+  }
+
+  .doc-body p {
+    font-size: 1.05rem;
+    line-height: 2;
+    color: var(--ink-2);
+    margin-bottom: 1.5em;
+  }
+  .doc-body h3 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.3rem;
+    letter-spacing: 0.02em;
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+    display: flex; align-items: center; gap: 0.75rem;
+  }
+  .doc-body h3::before {
+    content: '';
+    width: 20px; height: 3px;
+    background: var(--signal);
+    flex-shrink: 0;
+  }
+  .doc-body ul {
+    list-style: none;
+    margin-bottom: 1.5em;
+  }
+  .doc-body li {
+    padding: 0.9em 0;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-2);
+    font-size: 0.95rem;
+    line-height: 1.7;
+    display: flex; gap: 1rem;
+  }
+  .doc-body li::before {
+    content: '◆';
+    color: var(--signal);
+    font-size: 0.7em;
+    flex-shrink: 0;
+    margin-top: 0.35em;
+  }
+
+  /* ===== 跳转按钮 ===== */
+  .doc-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 1em 2em;
+    background: var(--signal);
+    border: 1px solid var(--signal);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+  .doc-cta:hover {
+    background: var(--ink);
+    color: var(--signal);
+    border-color: var(--ink);
+  }
+  .doc-cta:hover .arrow {
+    transform: translate(4px, -4px);
+  }
+  .doc-cta .arrow {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .doc-cta-top {
+    flex-shrink: 0;
+    margin-bottom: 0.4rem;
+  }
+
+  /* ===== 底部 CTA 区域 ===== */
+  .doc-footer {
+    margin-top: 4rem;
+    padding-top: 3rem;
+    border-top: 1px solid var(--line-2);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+  }
+  .doc-footer-label {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: flex; align-items: center; gap: 0.6rem;
+  }
+  .doc-footer-label::before {
+    content: '';
+    width: 16px; height: 3px;
+    background: var(--signal);
+  }
+
+  /* ===== 文档正文里的行内超链接 ===== */
+  .doc-body p a,
+  .doc-body li a:not(.link-grid a) {
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 600;
+    padding: 0.1em 0.3em;
+    margin: 0 -0.1em;
+    background-image: linear-gradient(var(--signal), var(--signal));
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 100% 0.35em;
+    transition: background-size 0.25s cubic-bezier(0.76, 0, 0.24, 1),
+                color 0.2s ease;
+    cursor: pointer;
+  }
+  .doc-body p a:hover,
+  .doc-body li a:not(.link-grid a):hover {
+    background-size: 100% 100%;
+    color: var(--ink);
+  }
+
+  /* ============================================================
+     ★ 链接网格：导航页专用
+     ============================================================ */
+  .doc-body .link-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1px;
+    background: var(--line-2);
+    border: 1px solid var(--line-2);
+    margin: 1.5rem 0 2.5rem;
+  }
+
+  .doc-body .link-grid a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.4em 1.5em;
+    background: var(--panel);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+    /* 覆盖行内超链接的荧光笔 */
+    background-image: none !important;
+    margin: 0;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 左侧信号黄竖条 */
+  .doc-body .link-grid a::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--signal);
+    transform: scaleY(0);
+    transform-origin: bottom;
+    transition: transform 0.25s cubic-bezier(0.76, 0, 0.24, 1);
+  }
+
+  .doc-body .link-grid a:hover {
+    background: var(--ink);
+    color: var(--signal);
+    background-size: auto !important;
+  }
+
+  .doc-body .link-grid a:hover::before {
+    transform: scaleY(1);
+  }
+
+  .doc-body .link-grid a .grid-arrow {
+    font-size: 0.9em;
+    opacity: 0.5;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.25s ease;
+    flex-shrink: 0;
+  }
+
+  .doc-body .link-grid a:hover .grid-arrow {
+    transform: translate(3px, -3px);
+    opacity: 1;
+  }
+
+  /* ============================================================
+     移动端
+     ============================================================ */
+  @media (max-width: 768px) {
+    .dock {
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: auto;
+      width: var(--side-w);
+      height: auto;
+      flex-direction: column;
+      padding-top: var(--safe-top);
+      padding-left: var(--safe-left);
+    }
+
+    .dock-btn {
+      flex: 1;
+      border-right: none;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      padding: 0.5rem 0;
+    }
+    .dock-btn:last-child { border-bottom: none; }
+
+    .dock-btn::before {
+      left: 0; right: 0; top: 0;
+      width: 100%;
+      height: 0;
+      bottom: auto;
+      transition: height 0.3s cubic-bezier(0.76, 0, 0.24, 1);
+    }
+    .dock-btn:hover::before,
+    .dock-btn:active::before {
+      height: 100%;
+      width: 100%;
+    }
+
+    body.doc-mode .dock {
+      transform: translateX(-100%);
+    }
+
+    .hero {
+      padding: 3rem 1.5rem;
+      padding-left: calc(1.5rem + var(--side-w));
+      min-height: 100vh;
+      min-height: calc(100vh - var(--safe-bottom));
+    }
+    .hero-index { font-size: 4rem; top: 1rem; right: 1.5rem; }
+
+    .doc-topbar {
+      padding: 1rem 1.5rem;
+      padding-top: calc(1rem + var(--safe-top));
+    }
+    .doc-content {
+      padding: 3rem 1.5rem 6rem;
+      padding-bottom: calc(6rem + var(--safe-bottom));
+    }
+
+    .doc-header-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1.2rem;
+      margin-bottom: 1.5rem;
+    }
+    .doc-index { font-size: 3.5rem; }
+    .doc-cta-top { margin-bottom: 0; }
+
+    /* 移动端网格单列 */
+    .doc-body .link-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 480px) {
+    :root { --side-w: 62px; }
+    .dock-btn { font-size: 0.55rem; }
+    .doc-content { padding-left: 1.25rem; padding-right: 1.25rem; }
+    .doc-topbar { padding-left: 1.25rem; padding-right: 1.25rem; }
+    .doc-cta { font-size: 0.7rem; padding: 0.85em 1.6em; }
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--paper); }
+  ::-webkit-scrollbar-thumb { background: var(--line-2); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+</style>
 </head>
 <body>
 
-    <div class="container">
-        <header>
-            <h1>🚀 我的导航站</h1>
-            <p>欢迎来到 parita.vip，在这里快速找到我的各个站点和教程</p>
-        </header>
+<div class="wipe"></div>
 
-        <main class="card-grid">
-            <!-- 卡片 1：博客 -->
-            <a href="https://duiyakid.github.io/parita/" class="card" target="_blank" rel="noopener">
-                <h2>📝 我的博客</h2>
-                <p>记录我的学习笔记、技术心得和生活感悟。</p>
-                <span class="btn">访问博客 &rarr;</span>
-            </a>
-
-            <!-- 卡片 2：Astro 教程（如果你想写教程，可以放这里） -->
-            <a href="/如何联机看电影.pdf" class="card" target="_blank" rel="noopener">
-                <h2>📖 如何一起看</h2>
-                <p>从零开始学会联机观看影视。</p>
-                <span class="btn">阅读教程 &rarr;</span>
-            </a>
-
-            <!-- 卡片 3：关于我 -->
-            <a href="/about.html" class="card" target="_blank" rel="noopener">
-                <h2>👤 关于我</h2>
-                <p>了解更多关于我的信息，以及如何联系我。</p>
-                <span class="btn">了解更多 &rarr;</span>
-            </a>
-
-            <!-- 卡片 4：自定义跳转（示例：你可以把外部工具放这里） -->
-            <a href="https://github.com/duiyakid" class="card" target="_blank" rel="noopener">
-                <h2>💻 GitHub</h2>
-                <p>查看我的开源项目和代码仓库。</p>
-                <span class="btn">前往 GitHub &rarr;</span>
-            </a>
-        </main>
-
-        <footer>
-            <p>&copy; 2024 Duiyakid. All rights reserved.</p>
-        </footer>
+<div class="page" id="pageHome">
+  <section class="hero">
+    <div class="hero-media"></div>
+    <div class="hero-index">01</div>
+    <h1 class="hero-title">
+      <span class="accent-bar"></span>
+      PARITA<br>集成工业
+    </h1>
+    <div class="hero-meta">
+      <span>疯子</span>
+      <span>抽象</span>
+      <span>恐怖</span>
     </div>
+  </section>
+</div>
+
+<nav class="dock">
+  <button class="dock-btn" data-key="start"><span class="dot"></span><span>导航</span></button>
+  <button class="dock-btn" data-key="docs"><span>新手引导</span></button>
+  <button class="dock-btn" data-key="download"><span>下载</span></button>
+  <button class="dock-btn" data-key="contact"><span>联系</span></button>
+</nav>
+
+<div class="page" id="pageDoc">
+  <div class="doc-topbar">
+    <button class="doc-back" id="docBack">
+      <span>←</span>
+      <span>返回</span>
+    </button>
+    <div class="doc-topbar-label" id="docTopLabel">DOCUMENT</div>
+  </div>
+
+  <div class="doc-content">
+
+    <div class="doc-header-row">
+      <div class="doc-index" id="docIndex">D-01</div>
+      <a class="doc-cta doc-cta-top" id="docCtaTop" target="_blank" rel="noopener noreferrer">
+        <span id="docCtaTopText">跳转</span>
+        <span class="arrow">↗</span>
+      </a>
+    </div>
+
+    <h1 class="doc-title" id="docTitle"></h1>
+    <div class="doc-divider"></div>
+
+    <div class="doc-body" id="docBody"></div>
+
+    <div class="doc-footer">
+      <div class="doc-footer-label">END OF DOCUMENT</div>
+      <a class="doc-cta" id="docCta" target="_blank" rel="noopener noreferrer">
+        <span id="docCtaText">跳转</span>
+        <span class="arrow">↗</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const DOCS = {
+    start: {
+      index: 'D-01',
+      label: 'NAVIGATION',
+      title: '导航 / Navigation',
+      ctaText: '不要点我',
+      link: 'https://parita.vip',
+      body: `
+        <p>该页面为员工导航站台，点击下方任意入口即可跳转。</p>
+        <p>如果您不知道如何使用集成工业，请先返回阅读「新手引导」文档。</p>
+
+        <h3>WIKI 百科</h3>
+        <div class="link-grid">
+          <a href="https://k8gljv0dik.feishu.cn/wiki/B9cYw5jz0iEw3kksXqUcEw71nic" target="_blank" rel="noopener noreferrer">
+            <span>飞书协作 Wiki</span>
+            <span class="grid-arrow">↗</span>
+          </a>
+          <a href="http://123.206.115.175:8077/index.php/%E9%A6%96%E9%A1%B5" target="_blank" rel="noopener noreferrer">
+            <span>MediaWiki</span>
+            <span class="grid-arrow">↗</span>
+          </a>
+          <a href="https://parita.yuque.com/org-wiki-parita-rh71lb/iglxhl" target="_blank" rel="noopener noreferrer">
+            <span>语雀Wiki</span>
+            <span class="grid-arrow">↗</span>
+          </a>
+        </div>
+
+        <h3>资源下载</h3>
+        <div class="link-grid">
+          <a href="https://1814127540.share.123pan.cn/123pan/DGL7Vv-gbG13" target="_blank" rel="noopener noreferrer">
+            <span>地球往事</span>
+            <span class="grid-arrow">↗</span>
+          </a>
+          <a href="http://123.206.115.175:5244/" target="_blank" rel="noopener noreferrer">
+            <span>表情包网盘</span>
+            <span class="grid-arrow">↗</span>
+          </a>
+          <a href="https://1814127540.share.123pan.cn/123pan/DGL7Vv-gbG13" target="_blank" rel="noopener noreferrer">
+            <span>游戏记录</span>
+            <span class="grid-arrow">↗</span>
+          </a>
+          <a href="https://1814127540.share.123pan.cn/123pan/DGL7Vv-gbG13" target="_blank" rel="noopener noreferrer">
+            <span>剪辑作品</span>
+            <span class="grid-arrow">↗</span>
+          </a>
+        </div>
+
+        <h3>档案库</h3>
+        <div class="link-grid">
+          <a href="https://k8gljv0dik.feishu.cn/wiki/DrnmwprVgig1hUkOqFWcwrHunNc" target="_blank" rel="noopener noreferrer">
+            <span>地球往事</span>
+            <span class="grid-arrow">↗</span>
+          </a>
+          <a href="https://parita.yuque.com/org-wiki-parita-rh71lb/iglxhl/uagddgrpyfdylvb6" target="_blank" rel="noopener noreferrer">
+            <span>照片博物馆</span>
+            <span class="grid-arrow">↗</span>
+          </a>
+        </div>
+
+      `
+    },
+    docs: {
+      index: 'D-02',
+      label: 'DOCUMENTATION',
+      title: '文档 / Docs',
+      ctaText: '查看文档',
+      link: 'https://k8gljv0dik.feishu.cn/wiki/Dd8Ow1cUzihRWhkSLakccjomnlb',
+      body: `
+        <p>如果你是游客，我建议你离开。</p>
+
+        <p>如果你是新来的员工，且不知道导航那里的都是什么东西，请点击「查看文档」。</p>
+
+      `
+    },
+    download: {
+      index: 'D-03',
+      label: 'DOWNLOAD',
+      title: '下载 / Download',
+      ctaText: '立即下载',
+      link: 'https://www.helloimg.com/i/2026/09/23/6ab3744752fac.jpg',
+      body: `
+        <p>这是「下载」入口。这里提供客户端、资源包、以及离线文档的下载。</p>
+
+        <h3>可以下什么</h3>
+        <p>不知道，其实这个页面是我乱写的，目前没东西</p>
+        <h3>系统要求</h3>
+        <p>桌面客户端需要 64 位操作系统，建议 8GB 以上内存。</p>
+        <p>移动端需要 iOS 14+ 或 Android 10+。</p>
+      `
+    },
+    contact: {
+      index: 'D-04',
+      label: 'CONTACT',
+      title: '联系 / Contact',
+      ctaText: '联系我们',
+      link: 'https://www.bilibili.com/video/BV1GJ411x7h7/?spm_id_from=333.337.search-card.all.click',
+      body: `
+        <p>这是「联系」入口。如果你有任何问题、建议或合作意向，可以通过以下方式联系我们。</p>
+        <p>不过全是假的</p>
+        <h3>邮箱</h3>
+        <ul>
+          <li>general@parita.vip · 通用咨询</li>
+          <li>support@parita.vip · 技术支持</li>
+          <li>press@parita.vip · 媒体合作</li>
+        </ul>
+
+        <h3>社交媒体</h3>
+        <p>我们会在社交媒体上发布更新日志、设计随笔、以及偶尔的幕后花絮。欢迎关注。</p>
+
+        <h3>反馈</h3>
+        <p>如果你在使用过程中遇到问题，或者对设计有任何建议，欢迎通过跳转按钮进入反馈表单提交。</p>
+      `
+    }
+  };
+
+  const body = document.body;
+  const docTopLabel = document.getElementById('docTopLabel');
+  const docIndex = document.getElementById('docIndex');
+  const docTitle = document.getElementById('docTitle');
+  const docBody = document.getElementById('docBody');
+  const docCtaTop = document.getElementById('docCtaTop');
+  const docCtaTopText = document.getElementById('docCtaTopText');
+  const docCta = document.getElementById('docCta');
+  const docCtaText = document.getElementById('docCtaText');
+  const docBack = document.getElementById('docBack');
+  const pageDoc = document.getElementById('pageDoc');
+
+  function enterDoc(key) {
+    const d = DOCS[key];
+    if (!d) return;
+
+    docTopLabel.textContent = d.label;
+    docIndex.textContent = d.index;
+    docTitle.textContent = d.title;
+    docBody.innerHTML = d.body;
+
+    const text = d.ctaText || '跳转';
+    docCtaTopText.textContent = text;
+    docCtaText.textContent = text;
+
+    if (d.link) {
+      docCtaTop.href = d.link;
+      docCtaTop.style.display = 'inline-flex';
+      docCta.href = d.link;
+      docCta.style.display = 'inline-flex';
+    } else {
+      docCtaTop.style.display = 'none';
+      docCta.style.display = 'none';
+    }
+
+    body.classList.add('doc-mode');
+    pageDoc.scrollTop = 0;
+  }
+
+  function exitDoc() {
+    body.classList.remove('doc-mode');
+  }
+
+  document.querySelectorAll('.dock-btn').forEach(btn => {
+    btn.addEventListener('click', () => enterDoc(btn.dataset.key));
+  });
+
+  docBack.addEventListener('click', exitDoc);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && body.classList.contains('doc-mode')) {
+      exitDoc();
+    }
+  });
+
+})();
+</script>
 
 </body>
 </html>
